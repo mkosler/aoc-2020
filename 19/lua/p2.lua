@@ -1,7 +1,3 @@
-local function cloneTable(t)
-  return { table.unpack(t) }
-end
-
 local function expandRule(rules, rule, t)
   t = t or {''}
 
@@ -14,16 +10,12 @@ local function expandRule(rules, rule, t)
 
   local pos = rule:find('|')
   if pos then
-    local lhs = rule:sub(1, pos - 1)
-    local rhs = rule:sub(pos + 1)
-    local rhsT = cloneTable(t)
+    local rhsT = { table.unpack(t) }
 
-    expandRule(rules, lhs, t)
-    expandRule(rules, rhs, rhsT)
+    expandRule(rules, rule:sub(1, pos - 1), t)
+    expandRule(rules, rule:sub(pos + 2), rhsT)
 
-    for _,v in ipairs(rhsT) do
-      table.insert(t, v)
-    end
+    for _,v in ipairs(rhsT) do table.insert(t, v) end
 
     return t
   end
@@ -44,55 +36,40 @@ local function contains(t, v)
 end
 
 local rules = {}
-
 local file = io.read('a')
-
 local pos, npos = file:find('\n\n')
-local rulesStr = file:sub(0, pos - 1)
-local messagesStr = file:sub(npos + 1)
 
-for i, rule in rulesStr:gmatch('(%d+):%s+([^\n]+)') do
+for i, rule in file:sub(0, pos - 1):gmatch('(%d+):%s+([^\n]+)') do
   rules[tonumber(i)] = rule
 end
 
 local count = 0
 
-local rule42 = expandRule(rules, rules[42])
-local rule31 = expandRule(rules, rules[31])
+local rule42, rule31 = expandRule(rules, rules[42]), expandRule(rules, rules[31])
 local fixLength = #rule42[1] -- Assumption is both prefix and suffix are same length
 
-for msg in messagesStr:gmatch('[^\n]+') do
-  if #msg % fixLength == 0 then
-    print('---')
-    local count42 = 0
-    local prefix = msg:sub(1, fixLength)
-    print(msg, prefix)
+for msg in file:sub(npos + 1):gmatch('[^\n]+') do
+  local count42 = 0
+  local prefix = msg:sub(1, fixLength)
 
-    print('rule 42')
-    while contains(rule42, prefix) do
-      count42 = count42 + 1
-      msg = msg:sub(fixLength + 1)
-      prefix = msg:sub(1, fixLength)
-      print(msg, prefix)
+  while contains(rule42, prefix) do
+    count42 = count42 + 1
+    msg = msg:sub(fixLength + 1)
+    prefix = msg:sub(1, fixLength)
+  end
+
+  if count42 >= 2 then
+    local count31 = 0
+    local suffix = msg:sub(-fixLength)
+
+    while contains(rule31, suffix) do
+      count31 = count31 + 1
+      msg = msg:sub(1, -(fixLength + 1))
+      suffix = msg:sub(-fixLength)
     end
 
-    if count42 >= 2 then
-      print('rule 31')
-      local count31 = 0
-      local suffix = msg:sub(-fixLength)
-      print(msg, suffix)
-
-      while contains(rule31, suffix) do
-        count31 = count31 + 1
-        msg = msg:sub(1, -(fixLength + 1))
-        suffix = msg:sub(-fixLength)
-        print(msg, suffix)
-      end
-
-      if count31 >= 1 and count42 > count31 and #msg == 0 then
-        print('counted!')
-        count = count + 1
-      end
+    if count31 >= 1 and count42 > count31 and #msg == 0 then
+      count = count + 1
     end
   end
 end
